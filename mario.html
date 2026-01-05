@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mario Run (T-Rex Clone)</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #5C94FC;
+            /* Classic Mario Sky Blue */
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            background-color: #5C94FC;
+            border-bottom: 4px solid #E75926;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .ui {
+            position: absolute;
+            top: 20px;
+            color: white;
+            font-size: 24px;
+            text-shadow: 2px 2px #000;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="ui">Score: <span id="score">0</span></div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+
+        // Game Constants
+        canvas.width = 800;
+        canvas.height = 200;
+        const GRAVITY = 0.6;
+        const JUMP_FORCE = -12;
+        const GROUND_Y = canvas.height - 40;
+
+        let score = 0;
+        let gameSpeed = 5;
+        let isGameOver = false;
+        let animationFrameId;
+
+        // --- Mario Object ---
+        const mario = {
+            x: 50,
+            y: GROUND_Y - 40,
+            width: 30,
+            height: 40,
+            dy: 0,
+            jumped: false,
+            draw() {
+                // Head/Hat
+                ctx.fillStyle = "#FF0000"; // Red
+                ctx.fillRect(this.x + 5, this.y, 20, 8);
+                // Face
+                ctx.fillStyle = "#FFCC99"; // Peach
+                ctx.fillRect(this.x + 5, this.y + 8, 20, 12);
+                // Body/Overalls
+                ctx.fillStyle = "#0000FF"; // Blue
+                ctx.fillRect(this.x, this.y + 20, 30, 15);
+                // Shoes
+                ctx.fillStyle = "#663300"; // Brown
+                ctx.fillRect(this.x, this.y + 35, 12, 5);
+                ctx.fillRect(this.x + 18, this.y + 35, 12, 5);
+            },
+            update() {
+                if (this.y + this.height < GROUND_Y) {
+                    this.dy += GRAVITY;
+                } else {
+                    this.dy = 0;
+                    this.jumped = false;
+                    this.y = GROUND_Y - this.height;
+                }
+
+                this.y += this.dy;
+                this.draw();
+            },
+            jump() {
+                if (!this.jumped) {
+                    this.dy = JUMP_FORCE;
+                    this.jumped = true;
+                }
+            }
+        };
+
+        // --- Obstacles (Goombas/Pipes) ---
+        class Obstacle {
+            constructor() {
+                this.width = 30 + Math.random() * 20;
+                this.height = 30 + Math.random() * 20;
+                this.x = canvas.width;
+                this.y = GROUND_Y - this.height;
+                this.type = Math.random() > 0.5 ? 'goomba' : 'pipe';
+            }
+            draw() {
+                if (this.type === 'goomba') {
+                    ctx.fillStyle = "#994400"; // Brown
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    ctx.fillStyle = "white"; // Eyes
+                    ctx.fillRect(this.x + 5, this.y + 5, 5, 5);
+                    ctx.fillRect(this.x + this.width - 10, this.y + 5, 5, 5);
+                } else {
+                    ctx.fillStyle = "#00A800"; // Green Pipe
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    ctx.strokeStyle = "black";
+                    ctx.strokeRect(this.x, this.y, this.width, this.height);
+                }
+            }
+            update() {
+                this.x -= gameSpeed;
+                this.draw();
+            }
+        }
+
+        let obstacles = [];
+        let spawnTimer = 0;
+
+        function handleObstacles() {
+            if (spawnTimer <= 0) {
+                obstacles.push(new Obstacle());
+                spawnTimer = 60 + Math.random() * 100; // Random spacing
+            } else {
+                spawnTimer--;
+            }
+
+            obstacles.forEach((obs, index) => {
+                obs.update();
+
+                // Collision Detection
+                if (
+                    mario.x < obs.x + obs.width &&
+                    mario.x + mario.width > obs.x &&
+                    mario.y < obs.y + obs.height &&
+                    mario.y + mario.height > obs.y
+                ) {
+                    isGameOver = true;
+                }
+
+                // Delete passed obstacles
+                if (obs.x + obs.width < 0) {
+                    obstacles.splice(index, 1);
+                    score++;
+                    scoreElement.innerText = score;
+                    if (score % 5 === 0) gameSpeed += 0.2; // Increase difficulty
+                }
+            });
+        }
+
+        function drawGround() {
+            ctx.fillStyle = "#885500"; // Dirt
+            ctx.fillRect(0, GROUND_Y, canvas.width, 40);
+        }
+
+        function gameLoop() {
+            if (isGameOver) {
+                ctx.fillStyle = "rgba(0,0,0,0.5)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "white";
+                ctx.font = "40px Arial";
+                ctx.fillText("MAMMA MIA! GAME OVER", canvas.width / 2 - 230, canvas.height / 2);
+                ctx.font = "20px Arial";
+                ctx.fillText("Press Space to Restart", canvas.width / 2 - 100, canvas.height / 2 + 40);
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawGround();
+            mario.update();
+            handleObstacles();
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Controls ---
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                if (isGameOver) {
+                    // Reset game
+                    isGameOver = false;
+                    score = 0;
+                    scoreElement.innerText = 0;
+                    gameSpeed = 5;
+                    obstacles = [];
+                    mario.y = GROUND_Y - mario.height;
+                    gameLoop();
+                } else {
+                    mario.jump();
+                }
+            }
+        });
+
+        gameLoop();
+    </script>
+</body>
+
+</html>
